@@ -14,21 +14,22 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS Middleware to allow requests from GitHub Pages (https://khanghohy.github.io) and any device
+# CORS Middleware to allow requests from GitHub Pages (https://khanghohy.github.io)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Private Network Access (PNA) header support for Chrome/Edge
+# Private Network Access header support
 @app.middleware("http")
 async def add_pna_header(request: Request, call_next):
     if request.method == "OPTIONS":
         response = await call_next(request)
         response.headers["Access-Control-Allow-Private-Network"] = "true"
+        response.headers["Access-Control-Allow-Origin"] = "*"
         return response
     response = await call_next(request)
     response.headers["Access-Control-Allow-Private-Network"] = "true"
@@ -40,19 +41,21 @@ init_db()
 # Include API routes
 app.include_router(router)
 
-# Mount static folders (supports both /static and relative ./css, ./js)
+# Mount static folders
 ROOT_DIR = Path(__file__).resolve().parent
 STATIC_DIR = ROOT_DIR / "static"
-CSS_DIR = STATIC_DIR / "css"
-JS_DIR = STATIC_DIR / "js"
+CSS_DIR = ROOT_DIR / "css"
+JS_DIR = ROOT_DIR / "js"
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-app.mount("/css", StaticFiles(directory=str(CSS_DIR)), name="css")
-app.mount("/js", StaticFiles(directory=str(JS_DIR)), name="js")
+if CSS_DIR.exists():
+    app.mount("/css", StaticFiles(directory=str(CSS_DIR)), name="css")
+if JS_DIR.exists():
+    app.mount("/js", StaticFiles(directory=str(JS_DIR)), name="js")
 
 @app.get("/")
 def index():
-    return FileResponse(str(STATIC_DIR / "index.html"))
+    return FileResponse(str(ROOT_DIR / "index.html" if (ROOT_DIR / "index.html").exists() else STATIC_DIR / "index.html"))
 
 if __name__ == "__main__":
     print("=================================================================")
