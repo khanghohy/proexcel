@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bảng Tính Excel & Quản Lý Ảnh SQL</title>
+  <meta name="description" content="Chương trình bảng tính phong cách Excel với tính năng thêm hàng, đính kèm ảnh full và nửa ảnh, lưu trữ trực tiếp vào cơ sở dữ liệu SQL.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/style.css">
+  <!-- Client-side SQLite & Excel Libraries for GitHub Pages / Offline Support -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Excel Ribbon Bar -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="excel-brand">
+          <div class="excel-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M4 3H20C21.1046 3 22 3.89543 22 5V19C22 20.1046 21.1046 21 20 21H4C2.89543 21 2 20.1046 2 19V5C2 3.89543 2.89543 3 4 3Z" fill="#107C41"/>
+              <path d="M8 8L16 16M16 8L8 16" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <h1 class="brand-title">Excel Ảnh SQL</h1>
+            <span class="brand-subtitle">Trực quan • Đính kèm ảnh • Lưu trữ SQL</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Toolbar -->
+      <div class="toolbar-center">
+        <button id="btnAddRow" class="btn btn-primary" title="Phím tắt: Enter">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          Thêm hàng
+        </button>
+        <button id="btnAddMultipleRows" class="btn btn-outline" title="Thêm nhanh 5 hàng trống">
+          +5 Hàng
+        </button>
+        <div class="toolbar-separator"></div>
+        <button id="btnExportExcel" class="btn btn-outline" title="Tải xuống tệp .xlsx đã nhúng ảnh">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          Xuất Excel (.xlsx)
+        </button>
+        <button id="btnSqlManager" class="btn btn-outline btn-sql" title="Xem cơ sở dữ liệu SQL & thực thi truy vấn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+          CSDL SQL
+        </button>
+      </div>
+
+      <!-- Right controls -->
+      <div class="header-right">
+        <div class="search-box">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="searchInput" placeholder="Tìm theo tên..." autocomplete="off">
+        </div>
+        <button id="themeToggle" class="btn-icon" title="Đổi chế độ sáng / tối">
+          <svg id="themeIconSun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+          <svg id="themeIconMoon" class="hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Formula / Tip Bar -->
+    <div class="formula-bar">
+      <div class="cell-address-box" id="activeCellAddress">A1</div>
+      <div class="fx-label">fx</div>
+      <div class="formula-content" id="formulaContent">
+        <span class="tip-badge">MẸO</span>
+        <span class="tip-text">Bấm ô để chọn • Dán ảnh nhanh bằng <b>Ctrl + V</b> • Kéo thả tệp ảnh vào ô • Bấm <b>Thêm hàng</b> để tạo dòng mới</span>
+      </div>
+      <div class="save-indicator" id="saveIndicator">
+        <span class="indicator-dot"></span>
+        <span class="indicator-text">Đã đồng bộ SQL</span>
+      </div>
+    </div>
+
+    <!-- Main Spreadsheet Grid -->
+    <main class="sheet-viewport">
+      <div class="sheet-container">
+        <table class="excel-table" id="excelTable">
+          <thead>
+            <tr>
+              <th class="col-index">#</th>
+              <th class="col-name">
+                <span class="col-letter">A</span>
+                <span class="col-title">Tên</span>
+              </th>
+              <th class="col-image">
+                <span class="col-letter">B</span>
+                <span class="col-title">Ảnh chụp full</span>
+                <span class="col-hint">(Toàn màn hình / chi tiết)</span>
+              </th>
+              <th class="col-image">
+                <span class="col-letter">C</span>
+                <span class="col-title">Ảnh chụp 1 nửa</span>
+                <span class="col-hint">(Phần quan trọng / khu vực)</span>
+              </th>
+              <th class="col-actions">
+                <span class="col-letter">D</span>
+                <span class="col-title">Thao tác</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <!-- Dynamic rows will be inserted here -->
+          </tbody>
+        </table>
+
+        <!-- Quick bottom add row bar -->
+        <div class="bottom-add-bar" id="bottomAddBar">
+          <button id="btnBottomAddRow" class="btn-bottom-add">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            Bấm để thêm hàng mới (Phím Enter)
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Excel Status Bar -->
+    <footer class="app-status-bar">
+      <div class="status-left">
+        <span class="status-tag ready-tag" id="statusModeTag">SẴN SÀNG</span>
+        <span id="statRowCount" class="status-item">Hàng: 0</span>
+        <span class="status-sep">|</span>
+        <span id="statFullCount" class="status-item">Ảnh Full: 0</span>
+        <span class="status-sep">|</span>
+        <span id="statHalfCount" class="status-item">Ảnh 1 Nửa: 0</span>
+        <span class="status-sep">|</span>
+        <span id="statTotalImages" class="status-item">Tổng ảnh BLOB: 0</span>
+      </div>
+      <div class="status-right">
+        <span id="statDbSize" class="status-item font-mono">SQLite: 0 KB</span>
+        <span class="status-sep">|</span>
+        <span class="status-item" id="statServerInfo">Server: Localhost:8000</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Lightbox Modal for High-Res Image Inspection -->
+  <div id="lightboxModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="lightbox-container">
+      <div class="lightbox-header">
+        <div class="lightbox-title-box">
+          <span class="lightbox-badge" id="lightboxBadge">ẢNH CHỤP</span>
+          <span class="lightbox-title" id="lightboxTitle">Xem ảnh</span>
+        </div>
+        <div class="lightbox-tools">
+          <button id="btnZoomOut" class="btn-tool" title="Thu nhỏ (-)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+          </button>
+          <span id="zoomLevelDisplay" class="zoom-text">100%</span>
+          <button id="btnZoomIn" class="btn-tool" title="Phóng to (+)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+          </button>
+          <button id="btnRotate" class="btn-tool" title="Xoay 90 độ">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+          </button>
+          <button id="btnResetZoom" class="btn-tool" title="Khôi phục kích thước gốc">1:1</button>
+          <a id="btnDownloadImage" class="btn-tool btn-tool-accent" title="Tải ảnh về máy" download>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          </a>
+          <button id="btnCloseLightbox" class="btn-tool btn-close" title="Đóng (ESC)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+      </div>
+      <div class="lightbox-body" id="lightboxBody">
+        <img id="lightboxImg" src="" alt="Ảnh chi tiết" draggable="false">
+      </div>
+    </div>
+  </div>
+
+  <!-- SQL Manager & Console Modal -->
+  <div id="sqlModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="sql-modal-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="sql-badge-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#107C41" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+          </div>
+          <div>
+            <h3 class="modal-title">Cơ Sở Dữ Liệu SQL</h3>
+            <p class="modal-subtitle">Dữ liệu văn bản và tệp ảnh được lưu trữ an toàn dưới dạng nhị phân BLOB trong cơ sở dữ liệu SQL</p>
+          </div>
+        </div>
+        <button id="btnCloseSqlModal" class="btn-close-modal">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- DB Summary Stats Cards -->
+        <div class="db-stats-grid">
+          <div class="db-stat-card">
+            <div class="db-stat-label">Hệ Quản Trị CSDL</div>
+            <div class="db-stat-val" id="dbEngineVal">SQLite 3</div>
+          </div>
+          <div class="db-stat-card">
+            <div class="db-stat-label">Đường dẫn tệp SQL (.db)</div>
+            <div class="db-stat-val font-mono text-truncate" id="dbPathVal">-</div>
+          </div>
+          <div class="db-stat-card">
+            <div class="db-stat-label">Dung lượng CSDL</div>
+            <div class="db-stat-val" id="dbSizeVal">0 KB</div>
+          </div>
+          <div class="db-stat-card">
+            <div class="db-stat-label">Tổng số ảnh nhúng BLOB</div>
+            <div class="db-stat-val" id="dbImagesVal">0</div>
+          </div>
+        </div>
+
+        <!-- SQL Schema Info -->
+        <div class="sql-section">
+          <div class="section-title">Cấu Trúc Bảng SQL (Schema: <code>records</code>)</div>
+          <div class="schema-table-wrap">
+            <table class="schema-table">
+              <thead>
+                <tr>
+                  <th>Cột (Column)</th>
+                  <th>Kiểu dữ liệu (SQL Type)</th>
+                  <th>Khóa chính (PK)</th>
+                  <th>Mặc định (Default)</th>
+                </tr>
+              </thead>
+              <tbody id="schemaTableBody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- SQL Console for User Execution -->
+        <div class="sql-section">
+          <div class="section-title">Thực Thi Truy Vấn SQL Trực Tiếp</div>
+          <div class="sql-editor-container">
+            <textarea id="sqlQueryInput" rows="3" spellcheck="false" class="sql-textarea">SELECT id, name, full_image_name, full_image_size, half_image_name, half_image_size, created_at FROM records ORDER BY id DESC;</textarea>
+            <div class="sql-editor-actions">
+              <button id="btnRunSql" class="btn btn-primary btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                Chạy Truy Vấn SQL
+              </button>
+              <button id="btnPresetSelect" class="btn btn-outline btn-sm">Xem tất cả hàng</button>
+              <button id="btnPresetImages" class="btn btn-outline btn-sm">Xem chi tiết ảnh BLOB</button>
+              <button id="btnDownloadSqlDb" class="btn btn-outline btn-sm" style="margin-left: auto;">
+                📥 Tải tệp CSDL (.db)
+              </button>
+            </div>
+          </div>
+          <div id="sqlResultContainer" class="sql-result-container hidden">
+            <!-- SQL query output table will render here -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Hidden global file input for cell uploads -->
+  <input type="file" id="globalFileInput" accept="image/*" class="hidden">
+
+  <script src="./js/app.js"></script>
+</body>
+</html>
