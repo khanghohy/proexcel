@@ -196,10 +196,29 @@
       <div class="modal-body">
         <!-- DB Summary Stats Cards -->
         <div class="db-stats-grid">
+          <div class="db-stat-card" style="grid-column: span 4; border: 1.5px solid var(--primary-border); background: var(--primary-light);">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+              <div>
+                <div style="font-weight: 700; color: var(--primary); font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                  <span class="indicator-dot"></span>
+                  Đường dẫn kết nối CSDL SQL máy tính (API Server):
+                </div>
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+                  Cho phép trang GitHub Pages đọc và ghi trực tiếp vào cơ sở dữ liệu trên máy tính của bạn
+                </div>
+              </div>
+              <div style="display: flex; gap: 6px; align-items: center; flex: 1; max-width: 460px;">
+                <input type="text" id="apiEndpointInput" class="font-mono" style="flex: 1; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border-color); font-size: 12px; background: var(--bg-surface); color: var(--text-main);" placeholder="https://...">
+                <button id="btnSaveApiEndpoint" class="btn btn-primary btn-sm">Lưu & Kết Nối</button>
+              </div>
+            </div>
+          </div>
+
           <div class="db-stat-card">
             <div class="db-stat-label">Hệ Quản Trị CSDL</div>
             <div class="db-stat-val" id="dbEngineVal">SQLite 3</div>
           </div>
+
           <div class="db-stat-card">
             <div class="db-stat-label">Đường dẫn tệp SQL (.db)</div>
             <div class="db-stat-val font-mono text-truncate" id="dbPathVal">-</div>

@@ -1,7 +1,7 @@
 // Excel Image Spreadsheet & SQL Studio Application
-// Supports both:
-// 1. Python FastAPI Backend + SQLite (when running on localhost:8000)
-// 2. Client-Side SQLite in WebAssembly via sql.js + SheetJS (when hosted on GitHub Pages)
+// Kết nối trực tiếp CSDL SQL trên máy tính hoặc GitHub Pages
+
+const DEFAULT_REMOTE_API = "https://mails-auburn-locally-constitutes.trycloudflare.com";
 
 document.addEventListener("DOMContentLoaded", async () => {
   // State
@@ -11,8 +11,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   let zoomLevel = 1.0;
   let rotationDeg = 0;
   let isClientSqlMode = false;
-  let clientDb = null; // sql.js Database instance for GitHub Pages mode
-  let clientObjectUrls = {}; // Cache object URLs for blob images in client mode
+  let clientDb = null;
+  let clientObjectUrls = {};
 
   // DOM Elements
   const tableBody = document.getElementById("tableBody");
@@ -65,9 +65,33 @@ document.addEventListener("DOMContentLoaded", async () => {
   const btnPresetImages = document.getElementById("btnPresetImages");
   const btnDownloadSqlDb = document.getElementById("btnDownloadSqlDb");
   const sqlResultContainer = document.getElementById("sqlResultContainer");
+  const apiEndpointInput = document.getElementById("apiEndpointInput");
+  const btnSaveApiEndpoint = document.getElementById("btnSaveApiEndpoint");
 
   // Toast container
   const toastContainer = document.getElementById("toastContainer");
+
+  // -------------------------------------------------------------
+  // API URL Helper
+  // -------------------------------------------------------------
+  function getApiBaseUrl() {
+    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+      return "";
+    }
+    const saved = localStorage.getItem("proexcel_api_url");
+    if (saved !== null && saved !== undefined && saved.trim() !== "") {
+      return saved.trim().replace(/\/+$/, "");
+    }
+    return DEFAULT_REMOTE_API;
+  }
+
+  function resolveImageUrl(url) {
+    if (!url) return null;
+    if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("blob:") || url.startsWith("data:")) {
+      return url;
+    }
+    return getApiBaseUrl() + url;
+  }
 
   // -------------------------------------------------------------
   // Theme Management
@@ -128,7 +152,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     } else {
       saveIndicator.innerHTML = `
         <span class="indicator-dot"></span>
-        <span class="indicator-text">${isClientSqlMode ? "Đã lưu vào WebAssembly SQL" : "Đã đồng bộ SQL"}</span>
+        <span class="indicator-text">${isClientSqlMode ? "Đã lưu vào In-Browser SQL" : "Đã đồng bộ CSDL Máy Tính"}</span>
       `;
     }
   }
@@ -142,45 +166,65 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // -------------------------------------------------------------
-  // Mode Detection: Backend API vs. Client-side SQLite (GitHub Pages)
+  // Mode Detection: Connect to Machine's Database
   // -------------------------------------------------------------
   async function detectModeAndInit() {
-    const isGitHub = window.location.hostname.includes("github.io") || window.location.protocol === "file:";
-    if (!isGitHub) {
-      try {
-        const testRes = await fetch("/api/records");
-        if (testRes.ok) {
-          isClientSqlMode = false;
-          statusModeTag.textContent = "SẴN SÀNG";
-          statServerInfo.textContent = "Server: Localhost:8000";
-          await fetchRecords();
-          return;
-        }
-      } catch (e) {
-        console.warn("Backend API không phản hồi, chuyển sang chế độ Client SQLite (sql.js):", e);
-      }
+    const apiUrl = getApiBaseUrl();
+    if (apiEndpointInput) {
+      apiEndpointInput.value = apiUrl;
     }
 
-    // Initialize Client-side SQLite in WebAssembly (GitHub Pages mode)
+    try {
+      showToast("Đang kết nối đến CSDL SQL máy tính...", "info");
+      const targetEndpoint = `${apiUrl}/api/records`;
+      const testRes = await fetch(targetEndpoint, {
+        headers: { "Accept": "application/json" }
+      });
+
+      if (testRes.ok) {
+        const data = await testRes.json();
+        isClientSqlMode = false;
+        statusModeTag.textContent = "ĐÃ NỐI SQL MÁY TÍNH";
+        statusModeTag.style.backgroundColor = "#107c41";
+        statServerInfo.textContent = apiUrl ? "Nối máy tính: Online (Tunnel)" : "Server: Localhost:8000";
+        records = data.records || [];
+        renderTable();
+        await updateStats();
+        showToast("Đã kết nối thành công với CSDL trên máy tính!");
+        return;
+      }
+    } catch (e) {
+      console.warn("Không thể kết nối đến máy tính:", e);
+      showToast("Máy tính chưa bật tunnel hoặc chặn kết nối, dùng SQLite trình duyệt", "info");
+    }
+
+    // Fallback to client-side SQLite in WebAssembly
     await initClientSql();
   }
 
+  if (btnSaveApiEndpoint) {
+    btnSaveApiEndpoint.addEventListener("click", async () => {
+      const val = (apiEndpointInput.value || "").trim().replace(/\/+$/, "");
+      localStorage.setItem("proexcel_api_url", val);
+      showToast("Đã lưu địa chỉ kết nối, đang thử lại...", "info");
+      await detectModeAndInit();
+    });
+  }
+
   // -------------------------------------------------------------
-  // Client-Side SQLite Implementation (sql.js for GitHub Pages)
+  // Client-Side SQLite Implementation (Fallback)
   // -------------------------------------------------------------
   async function initClientSql() {
     isClientSqlMode = true;
-    statusModeTag.textContent = "GITHUB PAGES (SQLITE)";
+    statusModeTag.textContent = "SQL TRÌNH DUYỆT (OFFLINE)";
     statusModeTag.style.backgroundColor = "#2563eb";
     statServerInfo.textContent = "Chế độ: WebAssembly SQLite";
 
     try {
-      showToast("Khởi tạo SQLite trong trình duyệt (GitHub Pages)...", "info");
       const SQL = await window.initSqlJs({
         locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
       });
 
-      // Try load from localStorage
       const savedDb = localStorage.getItem("proexcel_sqlite_db");
       if (savedDb) {
         const u8 = Uint8Array.from(atob(savedDb), c => c.charCodeAt(0));
@@ -189,7 +233,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         clientDb = new SQL.Database();
       }
 
-      // Initialize table
       clientDb.run(`
         CREATE TABLE IF NOT EXISTS records (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -208,20 +251,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         );
       `);
 
-      // Seed if empty
       const check = clientDb.exec("SELECT COUNT(*) FROM records");
       if (check[0].values[0][0] === 0) {
-        clientDb.run("INSERT INTO records (row_order, name) VALUES (1, 'Dự án Alpha (Demo trên GitHub)')");
+        clientDb.run("INSERT INTO records (row_order, name) VALUES (1, 'Dự án Alpha')");
         clientDb.run("INSERT INTO records (row_order, name) VALUES (2, 'Kiểm tra giao diện Excel')");
         clientDb.run("INSERT INTO records (row_order, name) VALUES (3, 'Báo cáo số liệu')");
         saveClientDb();
       }
 
       await fetchRecords();
-      showToast("Đã tải cơ sở dữ liệu SQLite trong trình duyệt!");
     } catch (err) {
       console.error("Lỗi khởi tạo SQLite WebAssembly:", err);
-      showToast("Không thể nạp SQLite WebAssembly", "error");
     }
   }
 
@@ -236,7 +276,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
       localStorage.setItem("proexcel_sqlite_db", btoa(binary));
     } catch (e) {
-      console.warn("Không thể lưu CSDL vào localStorage:", e);
+      console.warn("Lỗi lưu DB client:", e);
     }
   }
 
@@ -250,14 +290,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     try {
-      const res = await fetch("/api/records");
+      const apiUrl = getApiBaseUrl();
+      const res = await fetch(`${apiUrl}/api/records`);
       const data = await res.json();
       records = data.records || [];
       renderTable();
       updateStats();
     } catch (err) {
       console.error("Lỗi tải dữ liệu:", err);
-      showToast("Không thể kết nối đến máy chủ CSDL", "error");
+      showToast("Mất kết nối với CSDL máy tính", "error");
     }
   }
 
@@ -337,7 +378,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
       stmt.free();
     } catch (e) {
-      console.error("Lỗi trích xuất ảnh BLOB client:", e);
+      console.error("Lỗi trích xuất ảnh BLOB:", e);
     }
     return null;
   }
@@ -445,6 +486,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const colLetter = imageType === "full" ? "B" : "C";
     const cellCoord = `${colLetter}${rowIndex}`;
     const imgData = record[`${imageType}_image`];
+    const resolvedUrl = imgData && imgData.url ? resolveImageUrl(imgData.url) : null;
 
     const dropzone = document.createElement("div");
     dropzone.className = "cell-image-dropzone";
@@ -479,7 +521,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
 
-    if (imgData && imgData.exists && imgData.url) {
+    if (imgData && imgData.exists && resolvedUrl) {
       const card = document.createElement("div");
       card.className = "image-preview-card";
 
@@ -487,7 +529,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       thumbWrap.className = "img-thumb-wrap";
       const img = document.createElement("img");
       img.className = "img-thumb";
-      img.src = imgData.url;
+      img.src = `${resolvedUrl}${resolvedUrl.includes('?') ? '&' : '?'}t=${Date.now()}`;
       img.alt = imgData.name || "Ảnh";
       img.loading = "lazy";
       thumbWrap.appendChild(img);
@@ -523,7 +565,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       btnZoom.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>`;
       btnZoom.addEventListener("click", (e) => {
         e.stopPropagation();
-        openLightbox(imgData.url, record.name || title.textContent, imageType);
+        openLightbox(resolvedUrl, record.name || title.textContent, imageType);
       });
 
       const btnReplace = document.createElement("button");
@@ -538,7 +580,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const btnDownload = document.createElement("a");
       btnDownload.className = "btn-cell-act";
       btnDownload.title = "Tải ảnh về máy";
-      btnDownload.href = imgData.url;
+      btnDownload.href = resolvedUrl;
       btnDownload.download = imgData.name || `${imageType}_${record.id}.png`;
       btnDownload.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
       btnDownload.addEventListener("click", (e) => e.stopPropagation());
@@ -562,7 +604,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       card.appendChild(overlay);
 
       card.addEventListener("click", () => {
-        openLightbox(imgData.url, record.name || title.textContent, imageType);
+        openLightbox(resolvedUrl, record.name || title.textContent, imageType);
       });
 
       dropzone.appendChild(card);
@@ -663,14 +705,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     try {
-      const res = await fetch("/api/records", {
+      const apiUrl = getApiBaseUrl();
+      const res = await fetch(`${apiUrl}/api/records`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name })
       });
       const data = await res.json();
       if (data.success) {
-        showToast("Đã thêm 1 hàng mới vào CSDL SQL");
+        showToast("Đã thêm 1 hàng mới vào CSDL SQL máy tính!");
         await fetchRecords();
         setTimeout(() => {
           const newRow = document.getElementById(`row-${data.record.id}`);
@@ -707,14 +750,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     try {
+      const apiUrl = getApiBaseUrl();
       for (let i = 0; i < count; i++) {
-        await fetch("/api/records", {
+        await fetch(`${apiUrl}/api/records`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: "" })
         });
       }
-      showToast(`Đã thêm nhanh ${count} hàng mới vào SQL`);
+      showToast(`Đã thêm nhanh ${count} hàng mới vào SQL máy tính!`);
       await fetchRecords();
     } catch (err) {
       showToast("Lỗi khi thêm nhiều hàng", "error");
@@ -735,7 +779,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     try {
-      const res = await fetch(`/api/records/${recordId}`, {
+      const apiUrl = getApiBaseUrl();
+      const res = await fetch(`${apiUrl}/api/records/${recordId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newName })
@@ -768,10 +813,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     try {
-      const res = await fetch(`/api/records/${recordId}`, { method: "DELETE" });
+      const apiUrl = getApiBaseUrl();
+      const res = await fetch(`${apiUrl}/api/records/${recordId}`, { method: "DELETE" });
       const data = await res.json();
       if (data.success) {
-        showToast("Đã xóa hàng khỏi CSDL SQL");
+        showToast("Đã xóa hàng khỏi CSDL SQL máy tính!");
         await fetchRecords();
       }
     } catch (err) {
@@ -811,16 +857,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
+    const apiUrl = getApiBaseUrl();
     const formData = new FormData();
     formData.append("file", file);
     try {
-      const res = await fetch(`/api/records/${recordId}/upload-image/${imageType}`, {
+      const res = await fetch(`${apiUrl}/api/records/${recordId}/upload-image/${imageType}`, {
         method: "POST",
         body: formData
       });
       const data = await res.json();
       if (data.success) {
-        showToast(`Đã lưu ảnh ${imageType === "full" ? "Full" : "1 Nửa"} vào SQL BLOB!`);
+        showToast(`Đã lưu ảnh ${imageType === "full" ? "Full" : "1 Nửa"} vào SQL BLOB máy tính!`);
         await fetchRecords();
       } else {
         showToast(data.detail || "Không thể tải ảnh", "error");
@@ -856,12 +903,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     try {
-      const res = await fetch(`/api/records/${recordId}/image/${imageType}`, {
+      const apiUrl = getApiBaseUrl();
+      const res = await fetch(`${apiUrl}/api/records/${recordId}/image/${imageType}`, {
         method: "DELETE"
       });
       const data = await res.json();
       if (data.success) {
-        showToast("Đã xóa ảnh khỏi SQL");
+        showToast("Đã xóa ảnh khỏi SQL máy tính!");
         await fetchRecords();
       }
     } catch (err) {
@@ -891,27 +939,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         statTotalImages.textContent = `Tổng ảnh BLOB: ${totalImg}`;
         statDbSize.textContent = `SQLite: ${formatFileSize(dbSize)}`;
 
-        dbEngineVal.textContent = "SQLite 3 (WebAssembly / In-Browser)";
-        dbPathVal.textContent = "GitHub Pages • Trình duyệt (IndexedDB/RAM)";
+        dbEngineVal.textContent = "SQLite 3 (WebAssembly In-Browser)";
+        dbPathVal.textContent = "Trình duyệt (IndexedDB/RAM)";
         dbPathVal.title = "CSDL chạy trực tiếp trên trình duyệt";
         dbSizeVal.textContent = formatFileSize(dbSize);
         dbImagesVal.textContent = `${totalImg} ảnh (${fullCount} Full + ${halfCount} Nửa)`;
-
-        schemaTableBody.innerHTML = `
-          <tr><td><code>id</code></td><td><span class="kbd-badge">INTEGER</span></td><td>🔑 Khóa chính</td><td><code>NULL</code></td></tr>
-          <tr><td><code>row_order</code></td><td><span class="kbd-badge">INTEGER</span></td><td>-</td><td><code>0</code></td></tr>
-          <tr><td><code>name</code></td><td><span class="kbd-badge">TEXT</span></td><td>-</td><td><code>''</code></td></tr>
-          <tr><td><code>full_image_data</code></td><td><span class="kbd-badge">BLOB</span></td><td>-</td><td><code>NULL</code></td></tr>
-          <tr><td><code>full_image_mime</code></td><td><span class="kbd-badge">TEXT</span></td><td>-</td><td><code>NULL</code></td></tr>
-          <tr><td><code>full_image_name</code></td><td><span class="kbd-badge">TEXT</span></td><td>-</td><td><code>NULL</code></td></tr>
-          <tr><td><code>full_image_size</code></td><td><span class="kbd-badge">INTEGER</span></td><td>-</td><td><code>0</code></td></tr>
-          <tr><td><code>half_image_data</code></td><td><span class="kbd-badge">BLOB</span></td><td>-</td><td><code>NULL</code></td></tr>
-          <tr><td><code>half_image_mime</code></td><td><span class="kbd-badge">TEXT</span></td><td>-</td><td><code>NULL</code></td></tr>
-          <tr><td><code>half_image_name</code></td><td><span class="kbd-badge">TEXT</span></td><td>-</td><td><code>NULL</code></td></tr>
-          <tr><td><code>half_image_size</code></td><td><span class="kbd-badge">INTEGER</span></td><td>-</td><td><code>0</code></td></tr>
-          <tr><td><code>created_at</code></td><td><span class="kbd-badge">TIMESTAMP</span></td><td>-</td><td><code>CURRENT_TIMESTAMP</code></td></tr>
-          <tr><td><code>updated_at</code></td><td><span class="kbd-badge">TIMESTAMP</span></td><td>-</td><td><code>CURRENT_TIMESTAMP</code></td></tr>
-        `;
       } catch (e) {
         console.error("Lỗi tính stats client:", e);
       }
@@ -919,7 +951,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     try {
-      const res = await fetch("/api/db/stats");
+      const apiUrl = getApiBaseUrl();
+      const res = await fetch(`${apiUrl}/api/db/stats`);
       const stats = await res.json();
 
       statRowCount.textContent = `Hàng: ${stats.total_rows}`;
@@ -1008,6 +1041,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   // -------------------------------------------------------------
   btnSqlManager.addEventListener("click", () => {
     updateStats();
+    if (apiEndpointInput) {
+      apiEndpointInput.value = getApiBaseUrl();
+    }
     sqlModal.classList.remove("hidden");
   });
 
@@ -1045,7 +1081,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       URL.revokeObjectURL(url);
       showToast("Đã tải tệp cơ sở dữ liệu SQLite (.db)!");
     } else {
-      window.location.href = "/api/db/download";
+      const apiUrl = getApiBaseUrl();
+      window.location.href = `${apiUrl}/api/db/download`;
     }
   });
 
@@ -1101,7 +1138,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     try {
-      const res = await fetch("/api/db/query", {
+      const apiUrl = getApiBaseUrl();
+      const res = await fetch(`${apiUrl}/api/db/query`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query })
@@ -1192,8 +1230,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       window.XLSX.writeFile(wb, "bang_du_lieu_anh.xlsx");
       showToast("Đã tải file Excel thành công!");
     } else {
+      const apiUrl = getApiBaseUrl();
       showToast("Đang tạo và tải xuống tệp Excel kèm ảnh nhúng...", "info");
-      window.location.href = "/api/export/excel";
+      window.location.href = `${apiUrl}/api/export/excel`;
     }
   });
 

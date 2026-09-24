@@ -5,10 +5,14 @@ echo    EXCEL IMAGE SPREADSHEET & LOCAL SQL DATABASE
 echo =========================================================================
 echo.
 echo  [+] Dang khoi dong Web Server va Ket noi CSDL SQL...
-echo  [+] Ung dung: http://localhost:8000
-echo  [+] Duong dan CSDL: %~dp0data\excel_app.db
+echo  [+] Ung dung Local: http://localhost:8000
+echo  [+] Ung dung GitHub Pages: https://khanghohy.github.io/proexcel/
+echo  [+] Duong dan CSDL SQL: %~dp0data\excel_app.db
 echo.
-echo  Nhan Ctrl + C trong cua so nay de dung server bat cu luc nao.
+if exist "%~dp0cloudflared.exe" (
+  echo  [+] Dang khoi dong Cloudflare Tunnel ket noi GitHub Pages...
+  start /b "" "%~dp0cloudflared.exe" tunnel --url http://localhost:8000
+)
 echo =========================================================================
 echo.
 

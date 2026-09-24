@@ -1,7 +1,8 @@
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 
 from app.database import init_db
@@ -12,6 +13,26 @@ app = FastAPI(
     description="Ứng dụng bảng tính Excel hỗ trợ chụp/đính kèm ảnh lưu trực tiếp vào cơ sở dữ liệu SQL trên máy tính",
     version="1.0.0"
 )
+
+# CORS Middleware to allow requests from GitHub Pages (https://khanghohy.github.io) and any device
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Private Network Access (PNA) header support for Chrome/Edge
+@app.middleware("http")
+async def add_pna_header(request: Request, call_next):
+    if request.method == "OPTIONS":
+        response = await call_next(request)
+        response.headers["Access-Control-Allow-Private-Network"] = "true"
+        return response
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Private-Network"] = "true"
+    return response
 
 # Initialize database
 init_db()
