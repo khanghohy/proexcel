@@ -1,7 +1,7 @@
 // Excel Image Spreadsheet & SQL Studio Application
 // Kết nối trực tiếp CSDL SQL trên máy tính hoặc GitHub Pages
 
-const DEFAULT_REMOTE_API = "https://mails-auburn-locally-constitutes.trycloudflare.com";
+const DEFAULT_REMOTE_API = "https://ink-tradition-furnishings-maybe.trycloudflare.com";
 
 document.addEventListener("DOMContentLoaded", async () => {
   // State
